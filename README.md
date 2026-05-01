@@ -1,170 +1,148 @@
-# perceptron-from-scratch
-# 🧠 Single-Layer Perceptron from Scratch
+# Wumpus Logic Agent
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=flat-square&logo=python)
-![NumPy](https://img.shields.io/badge/NumPy-only-green?style=flat-square&logo=numpy)
-![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)
+![HTML](https://img.shields.io/badge/HTML5-Canvas-orange?style=flat-square)
+![JavaScript](https://img.shields.io/badge/JavaScript-Vanilla-yellow?style=flat-square)
+![Logic](https://img.shields.io/badge/AI-Propositional%20Logic-blue?style=flat-square)
 ![Status](https://img.shields.io/badge/Status-Complete-brightgreen?style=flat-square)
 
-A clean, minimal implementation of a **single-layer Perceptron** built entirely from scratch using only NumPy — no sklearn, no TensorFlow, no shortcuts.
+A browser-based Knowledge-Based Agent that navigates a Wumpus World grid using Propositional Logic and an automated Resolution Refutation engine — built entirely in vanilla HTML, CSS, and JavaScript with no external dependencies.
 
 ---
 
-## 📌 Overview
+## Overview
 
-This project implements the classical **Perceptron Learning Algorithm** as originally proposed by Frank Rosenblatt (1958). The model learns a linear decision boundary by iteratively adjusting weights based on prediction errors.
+The agent operates in a randomly generated grid containing hidden pits and a Wumpus. It receives percepts (Breeze near pits, Stench near Wumpus) and uses a Propositional Logic Knowledge Base to deduce which adjacent cells are safe before moving.
 
-The implementation includes:
-- Weight initialization
-- Step activation function
-- Training loop with Perceptron update rule
-- Prediction function
-- Evaluation on a dummy dataset (AND gate)
+The inference engine implements the full Resolution Refutation algorithm: clauses are added to the KB via TELL, and safety of a cell is queried via ASK by negating the goal and resolving clause pairs until a contradiction (empty clause) is derived.
 
 ---
 
-## 📁 Project Structure
+## Features
+
+- Dynamic grid sizing — configure rows and columns before each episode
+- Random placement of pits (20% probability per cell) and one Wumpus
+- Percept generation — Breeze if adjacent to pit, Stench if adjacent to Wumpus
+- Propositional Logic KB updated in real time as the agent moves
+- Resolution Refutation engine resolves CNF clauses to prove cell safety
+- Real-time metrics dashboard showing inference steps and active percepts
+- Color-coded grid: blue (agent), green (visited/safe), red (danger), gray (unknown)
+- Step-by-step navigation mode
+
+---
+
+## How It Works
+
+### Knowledge Base
+
+When the agent visits a cell and detects a percept, it adds clauses to the KB:
 
 ```
-perceptron-from-scratch/
+Breeze at (x,y)  →  tell: [~B_x_y, P_nx_ny, P_nx2_ny2, ...]
+Stench at (x,y)  →  tell: [~S_x_y, W_nx_ny, W_nx2_ny2, ...]
+```
+
+### Resolution Refutation
+
+Before moving to an unvisited neighbor `(nx, ny)`, the agent queries:
+
+```
+Is P_nx_ny provable?   (is there a pit here?)
+Is W_nx_ny provable?   (is there a Wumpus here?)
+```
+
+The engine negates the query, adds it as a unit clause, then resolves clause pairs. If the empty clause is derived, the query is entailed — meaning danger is confirmed. If no new clauses can be produced, the cell is considered safe to enter.
+
+### Resolution Algorithm
+
+```javascript
+function resolve(ci, cj) {
+  // Find complementary literals between two clauses
+  // Return new resolvent clauses with those literals removed
+}
+
+function resolution(query) {
+  clauses = KB + [negate(query)]
+  repeat:
+    for each pair (ci, cj):
+      resolvents = resolve(ci, cj)
+      if empty clause found → return true (query entailed)
+    if no new clauses → return false
+}
+```
+
+---
+
+## Project Structure
+
+```
+wumpus-logic-agent/
 │
-├── perceptron.py        # Core implementation
-├── README.md            # Project documentation
-└── requirements.txt     # Dependencies (numpy only)
+├── wumpus.html      # Complete single-file application
+└── README.md        # Project documentation
 ```
 
 ---
 
-## ⚙️ How It Works
+## Getting Started
 
-### Algorithm
+No installation or build step required.
 
-The Perceptron update rule is:
-
-```
-w ← w + η · (y - ŷ) · x
-b ← b + η · (y - ŷ)
-```
-
-Where:
-- `w` = weight vector
-- `η` = learning rate
-- `y` = true label
-- `ŷ` = predicted label
-- `x` = input feature vector
-
-### Activation Function
-
-A **step function** is used:
-
-```
-f(z) = 1  if z ≥ 0
-f(z) = 0  otherwise
-```
+1. Clone the repository
+2. Open `wumpus.html` in any modern browser
+3. Set grid dimensions (Rows x Cols)
+4. Click Start to generate the environment
+5. Click Next Step to advance the agent one move at a time
 
 ---
 
-## 🚀 Getting Started
+## Grid Legend
 
-### Prerequisites
-
-```bash
-pip install numpy
-```
-
-### Run
-
-```bash
-python perceptron.py
-```
-
-### Expected Output
-
-```
-=== Single-Layer Perceptron Training (AND Gate) ===
-
-Epoch 01 | Errors: 2 | Accuracy: 50.0%
-Epoch 02 | Errors: 1 | Accuracy: 75.0%
-Epoch 03 | Errors: 0 | Accuracy: 100.0%
-...
-Epoch 20 | Errors: 0 | Accuracy: 100.0%
-
-Learned Weights: [0.1 0.1] | Bias: -0.10
-
-=== Evaluation ===
-Final Test Accuracy: 100.0%
-  Sample 1: Input=[0 0] | True=0 | Pred=0 | ✓
-  Sample 2: Input=[0 1] | True=0 | Pred=0 | ✓
-  Sample 3: Input=[1 0] | True=0 | Pred=0 | ✓
-  Sample 4: Input=[1 1] | True=1 | Pred=1 | ✓
-```
+| Color | Meaning |
+|-------|---------|
+| Blue | Agent current position |
+| Green | Visited and confirmed safe |
+| Gray | Unvisited / unknown |
+| Red | Confirmed pit or Wumpus |
 
 ---
 
-## 🧪 Dataset
+## Metrics Dashboard
 
-The model is trained on the classic **AND gate** truth table — a linearly separable binary classification problem:
+The panel below the grid displays:
 
-| Input X1 | Input X2 | Output (AND) |
-|----------|----------|--------------|
-| 0        | 0        | 0            |
-| 0        | 1        | 0            |
-| 1        | 0        | 0            |
-| 1        | 1        | 1            |
-
-> ⚠️ Note: The Perceptron cannot solve non-linearly separable problems like XOR. For those, a multi-layer network is required.
+- **Inference Steps** — total number of clause resolutions performed across all moves
+- **Percepts** — current breeze/stench status at the agent's position
 
 ---
 
-## 📊 Hyperparameters
+## Concepts Demonstrated
 
-| Parameter     | Default | Description                        |
-|---------------|---------|------------------------------------|
-| learning_rate | 0.1     | Step size for weight updates       |
-| epochs        | 20      | Number of full training passes     |
-
-These can be adjusted directly when calling `train_perceptron()`.
-
----
-
-## 🧩 Key Functions
-
-| Function              | Description                                      |
-|-----------------------|--------------------------------------------------|
-| `initialize_weights`  | Returns zero-initialized weight vector and bias  |
-| `step_activation`     | Binary threshold activation function             |
-| `predict`             | Runs forward pass on input array                 |
-| `train_perceptron`    | Full training loop with weight updates           |
-| `evaluate`            | Prints per-sample predictions and accuracy       |
+- Knowledge-Based Agent architecture (TELL / ASK)
+- Propositional Logic and CNF clause representation
+- Resolution Refutation proof by contradiction
+- Online KB construction from sensor percepts
+- Entailment checking without enumeration
 
 ---
 
-## 📚 Concepts Demonstrated
+## Limitations
 
-- **Supervised Learning** — learning from labeled examples
-- **Linear Classification** — the Perceptron finds a hyperplane separator
-- **Online Learning** — weights are updated after every single sample
-- **Convergence** — guaranteed to converge if the data is linearly separable (Perceptron Convergence Theorem)
-
----
-
-## 🛠️ Extending This Project
-
-You can extend this implementation to:
-- Try different datasets (OR gate, custom binary data)
-- Plot the decision boundary using matplotlib
-- Implement a multi-layer Perceptron (MLP) for non-linear problems
-- Add sigmoid activation for probabilistic output
+- If a cell could be a pit or a Wumpus, both must be independently refuted before the agent enters
+- Fallback to random movement when no safe cell can be proven — the agent may still die in highly constrained environments
+- No backtracking or utility-based planning; the agent is purely logic-driven
 
 ---
 
-## 📄 License
+## Built With
 
-This project is licensed under the MIT License.
+- HTML5 Canvas for grid rendering
+- Vanilla JavaScript for all logic — no frameworks
+- CSS for layout and styling
 
 ---
 
-## 👤 Author
+## Author
 
-Built as part of **AI 2002 – Artificial Intelligence (Spring 2026)**  
-National University of Computer & Emerging Sciences — Chiniot-Faisalabad Campus
+**Muhammad Shahzain**
+AI 2002 — Artificial Intelligence (Spring 2026)
+National University of Computer and Emerging Sciences — Chiniot-Faisalabad Campus
