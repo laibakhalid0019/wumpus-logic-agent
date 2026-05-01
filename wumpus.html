@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Wumpus Logic Agent</title>
+
+    <style>
+      body {
+        font-family: "Segoe UI", sans-serif;
+        background: linear-gradient(135deg, #1e293b, #0f172a);
+        color: white;
+        text-align: center;
+        margin: 0;
+        padding: 20px;
+      }
+
+      h2 {
+        margin-bottom: 10px;
+      }
+
+      .controls {
+        background: #1f2937;
+        padding: 15px;
+        border-radius: 10px;
+        display: inline-block;
+        margin-bottom: 15px;
+      }
+
+      input,
+      button {
+        margin: 5px;
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: none;
+      }
+
+      button {
+        background: #3b82f6;
+        color: white;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        background: gray;
+        cursor: not-allowed;
+      }
+
+      canvas {
+        border: 2px solid #334155;
+        margin-top: 15px;
+        border-radius: 8px;
+        background: #111827;
+      }
+
+      .panel {
+        margin-top: 15px;
+        background: #1f2937;
+        padding: 10px;
+        border-radius: 10px;
+        display: inline-block;
+        min-width: 300px;
+      }
+
+      .status {
+        margin-top: 10px;
+        font-weight: bold;
+        font-size: 18px;
+      }
+
+      .win {
+        color: #22c55e;
+      }
+      .lose {
+        color: #ef4444;
+      }
+
+      .legend {
+        margin-top: 10px;
+        font-size: 14px;
+      }
+
+      .legend span {
+        margin-right: 10px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h2>Wumpus Logic Agent</h2>
+
+    <div class="controls">
+      Rows: <input type="number" id="rows" value="4" /> Cols:
+      <input type="number" id="cols" value="4" />
+      <br />
+      <button onclick="start()">Start</button>
+      <button onclick="step()" id="stepBtn">Next Step</button>
+    </div>
+
+    <canvas id="gridCanvas" width="420" height="420"></canvas>
+
+    <div class="panel">
+      <div id="metrics"></div>
+      <div id="status" class="status"></div>
+
+      <div class="legend">
+        <span>🟩 Safe</span>
+        <span>⬜ Unknown</span>
+        <span>🟥 Danger</span>
+        <span>🟦 Agent</span>
+      </div>
+    </div>
+
+    <script>
+      let grid = [];
+      let rows, cols;
+      let agent;
+      let KB = [];
+      let inferenceSteps = 0;
+      let gameOver = false;
+
+      function start() {
+        rows = +document.getElementById("rows").value;
+        cols = +document.getElementById("cols").value;
+
+        grid = [];
+
+        for (let i = 0; i < rows; i++) {
+          grid[i] = [];
+          for (let j = 0; j < cols; j++) {
+            grid[i][j] = {
+              pit: Math.random() < 0.2,
+              wumpus: false,
+              visited: false,
+            };
+          }
+        }
+
+        let wx = Math.floor(Math.random() * rows);
+        let wy = Math.floor(Math.random() * cols);
+        grid[wx][wy].wumpus = true;
+
+        agent = { x: 0, y: 0, percepts: {} };
+        KB = [];
+        inferenceSteps = 0;
+        gameOver = false;
+
+        document.getElementById("status").innerText = "";
+        document.getElementById("stepBtn").disabled = false;
+
+        draw();
+      }
+
+      function getPercepts(x, y) {
+        let breeze = false,
+          stench = false;
+        let dirs = [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ];
+
+        for (let [dx, dy] of dirs) {
+          let nx = x + dx,
+            ny = y + dy;
+          if (nx >= 0 && ny >= 0 && nx < rows && ny < cols) {
+            if (grid[nx][ny].pit) breeze = true;
+            if (grid[nx][ny].wumpus) stench = true;
+          }
+        }
+        return { breeze, stench };
+      }
+
+      function tell(clause) {
+        KB.push(clause);
+      }
+
+      function negate(lit) {
+        return lit.startsWith("~") ? lit.slice(1) : "~" + lit;
+      }
+
+      function resolve(ci, cj) {
+        let resolvents = [];
+        for (let li of ci) {
+          for (let lj of cj) {
+            if (li === negate(lj)) {
+              let newClause = ci
+                .filter((x) => x !== li)
+                .concat(cj.filter((x) => x !== lj));
+              resolvents.push(newClause);
+            }
+          }
+        }
+        return resolvents;
+      }
+
+      function resolution(query) {
+        let clauses = [...KB];
+        clauses.push([negate(query)]);
+        let newClauses = [];
+
+        while (true) {
+          for (let i = 0; i < clauses.length; i++) {
+            for (let j = i + 1; j < clauses.length; j++) {
+              let resolvents = resolve(clauses[i], clauses[j]);
+
+              for (let r of resolvents) {
+                inferenceSteps++;
+                if (r.length === 0) return true;
+                newClauses.push(r);
+              }
+            }
+          }
+
+          let noNew = newClauses.every((c) =>
+            clauses.some((e) => JSON.stringify(e) === JSON.stringify(c))
+          );
+
+          if (noNew) return false;
+
+          clauses = clauses.concat(newClauses);
+        }
+      }
+
+      function step() {
+        if (gameOver) return;
+
+        let { x, y } = agent;
+        grid[x][y].visited = true;
+
+        // CHECK LOSS
+        if (grid[x][y].pit || grid[x][y].wumpus) {
+          endGame(false, "Agent died! Fell into danger.");
+          return;
+        }
+
+        let percepts = getPercepts(x, y);
+        agent.percepts = percepts;
+
+        if (!percepts.breeze && !percepts.stench) {
+          document.getElementById("status").innerText =
+            "No danger nearby → surrounding cells are safe.";
+        }
+
+        if (percepts.breeze) {
+          let neighbors = getNeighbors(x, y).map(([nx, ny]) => `P_${nx}_${ny}`);
+          tell(["~B_" + x + "_" + y, ...neighbors]);
+        }
+
+        if (percepts.stench) {
+          let neighbors = getNeighbors(x, y).map(([nx, ny]) => `W_${nx}_${ny}`);
+          tell(["~S_" + x + "_" + y, ...neighbors]);
+        }
+
+        let moves = getNeighbors(x, y);
+
+        for (let [nx, ny] of moves) {
+          if (!grid[nx][ny].visited) {
+            let safePit = resolution(`P_${nx}_${ny}`);
+            let safeWumpus = resolution(`W_${nx}_${ny}`);
+
+            if (safePit && safeWumpus) {
+              agent.x = nx;
+              agent.y = ny;
+              draw();
+              return;
+            }
+          }
+        }
+
+        // fallback
+        let [nx, ny] = moves[Math.floor(Math.random() * moves.length)];
+        agent.x = nx;
+        agent.y = ny;
+
+        draw();
+      }
+
+      function endGame(win, msg) {
+        gameOver = true;
+        document.getElementById("stepBtn").disabled = true;
+
+        let status = document.getElementById("status");
+        status.innerText = msg;
+        status.className = "status " + (win ? "win" : "lose");
+      }
+
+      function getNeighbors(x, y) {
+        let dirs = [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ];
+        let result = [];
+
+        for (let [dx, dy] of dirs) {
+          let nx = x + dx,
+            ny = y + dy;
+          if (nx >= 0 && ny >= 0 && nx < rows && ny < cols) {
+            result.push([nx, ny]);
+          }
+        }
+        return result;
+      }
+
+      function draw() {
+        let canvas = document.getElementById("gridCanvas");
+        let ctx = canvas.getContext("2d");
+
+        let cellW = canvas.width / cols;
+        let cellH = canvas.height / rows;
+
+        for (let i = 0; i < rows; i++) {
+          for (let j = 0; j < cols; j++) {
+            let color = "#6b7280"; // unknown
+
+            if (grid[i][j].visited) color = "#22c55e";
+            if (grid[i][j].pit || grid[i][j].wumpus) color = "#ef4444";
+            if (agent.x === i && agent.y === j) color = "#3b82f6";
+
+            ctx.fillStyle = color;
+            ctx.fillRect(j * cellW, i * cellH, cellW, cellH);
+            ctx.strokeStyle = "#111";
+            ctx.strokeRect(j * cellW, i * cellH, cellW, cellH);
+          }
+        }
+
+        document.getElementById(
+          "metrics"
+        ).innerText = `Inference Steps: ${inferenceSteps} | Percepts: ${JSON.stringify(
+          agent.percepts
+        )}`;
+      }
+    </script>
+  </body>
+</html>
